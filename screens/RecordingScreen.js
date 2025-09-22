@@ -1,17 +1,17 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Camera } from 'expo-camera';
+import { Camera, CameraView } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -24,26 +24,51 @@ export default function RecordingScreen({ navigation, route }) {
   const [recordingTime, setRecordingTime] = useState(0);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+
   const cameraRef = useRef(null);
   const { test } = route.params;
-  
+
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      const mediaStatus = await MediaLibrary.requestPermissionsAsync();
-      setHasPermission(status === 'granted' && mediaStatus.status === 'granted');
-    })();
+    const requestPermissions = async () => {
+      try {
+        const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
+        const { status: microphoneStatus } = await Camera.requestMicrophonePermissionsAsync();
+        // const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
+
+        // if (cameraStatus !== 'granted') {
+        //   Alert.alert(
+        //     'Camera Permission',
+        //     'Camera access is required for this app.',
+        //     [
+        //       { text: 'Cancel', style: 'cancel' },
+        //       { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        //     ]
+        //   );
+        // }
+
+        setHasPermission(cameraStatus === 'granted' && microphoneStatus === 'granted');
+      } catch (err) {
+        console.error('Permission error:', err);
+        setHasPermission(false);
+      }
+    };
+
+    requestPermissions();
   }, []);
 
   useEffect(() => {
     let interval = null;
     if (isRecording && recordingTime > 0) {
       interval = setInterval(() => {
-        setRecordingTime(time => time - 1);
+        setRecordingTime(time => {
+          if (time <= 1) {
+            // Stop recording when timer reaches 1 second left
+            setTimeout(() => stopRecording(), 100);
+            return 0;
+          }
+          return time - 1;
+        });
       }, 1000);
-    } else if (recordingTime === 0 && isRecording) {
-      stopRecording();
     }
     return () => clearInterval(interval);
   }, [isRecording, recordingTime]);
@@ -51,7 +76,7 @@ export default function RecordingScreen({ navigation, route }) {
   const startCountdown = () => {
     setIsPreparing(true);
     setCountdown(3);
-    
+
     const countdownInterval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -69,22 +94,27 @@ export default function RecordingScreen({ navigation, route }) {
     if (cameraRef.current) {
       try {
         setIsRecording(true);
-        
+
         // Set recording duration based on test type
         const duration = getTestDuration(test.id);
         setRecordingTime(duration);
-        
+
+        // Start recording without maxDuration to avoid premature stopping
         const video = await cameraRef.current.recordAsync({
-          quality: Camera.Constants.VideoQuality['720p'],
-          maxDuration: duration,
+          quality: '720p',
         });
-        
-        // Save video and analyze
-        await saveAndAnalyzeVideo(video.uri);
+
+        // Only process if we have a valid video
+        if (video && video.uri) {
+          await saveAndAnalyzeVideo(video.uri);
+        } else {
+          throw new Error('No video data captured');
+        }
       } catch (error) {
         console.error('Recording error:', error);
         Alert.alert('Error', 'Failed to record video. Please try again.');
         setIsRecording(false);
+        setRecordingTime(0);
       }
     }
   };
@@ -92,50 +122,51 @@ export default function RecordingScreen({ navigation, route }) {
   const stopRecording = async () => {
     if (cameraRef.current && isRecording) {
       try {
+        console.log('Stopping recording...');
         setIsRecording(false);
         setRecordingTime(0);
         await cameraRef.current.stopRecording();
       } catch (error) {
         console.error('Stop recording error:', error);
+        // Don't show alert for stop recording errors as they're usually harmless
       }
     }
   };
 
   const getTestDuration = (testId) => {
     switch (testId) {
-      case 'vertical_jump': return 30;
-      case 'shuttle_run': return 60;
-      case 'sit_ups': return 60;
-      case 'endurance_run': return 720; // 12 minutes
-      case 'flexibility': return 30;
-      default: return 60;
+      case 'vertical_jump': return 10; // Shorter for demo
+      case 'shuttle_run': return 15;   // Shorter for demo
+      case 'sit_ups': return 20;       // Shorter for demo
+      case 'flexibility': return 10;   // Shorter for demo
+      default: return 15;
     }
   };
 
   const saveAndAnalyzeVideo = async (videoUri) => {
     try {
       setIsAnalyzing(true);
-      
+
       // Save video to device
       const asset = await MediaLibrary.createAssetAsync(videoUri);
-      
+
       // Simulate AI analysis (in real app, this would call ML models)
       const analysisResult = await simulateAIAnalysis(test.id, videoUri);
-      
+
       // Save results
       await saveTestResult(analysisResult);
-      
+
       setAnalysisResult(analysisResult);
       setIsAnalyzing(false);
-      
+
       // Navigate to results
       setTimeout(() => {
-        navigation.navigate('Results', { 
+        navigation.navigate('Results', {
           result: analysisResult,
-          test: test 
+          test: test
         });
       }, 2000);
-      
+
     } catch (error) {
       setIsAnalyzing(false);
       Alert.alert('Error', 'Failed to analyze video. Please try again.');
@@ -145,7 +176,7 @@ export default function RecordingScreen({ navigation, route }) {
   const simulateAIAnalysis = async (testId, videoUri) => {
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
+
     // Generate realistic results based on test type
     const results = {
       vertical_jump: {
@@ -175,13 +206,6 @@ export default function RecordingScreen({ navigation, route }) {
         attempts: [Math.floor(Math.random() * 20) + 25],
         confidence: 0.88,
         technique_notes: ['Consistent form', 'Full range of motion']
-      },
-      endurance_run: {
-        score: (Math.random() * 1000 + 1500).toFixed(0), // 1500-2500 meters
-        unit: 'meters',
-        attempts: [(Math.random() * 1000 + 1500).toFixed(0)],
-        confidence: 0.85,
-        technique_notes: ['Steady pace maintained', 'Good endurance']
       },
       flexibility: {
         score: Math.floor(Math.random() * 15) + 5, // 5-20 cm
@@ -221,7 +245,7 @@ export default function RecordingScreen({ navigation, route }) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.loadingText}>Requesting camera permissions...</Text>
+        <Text style={styles.loadingText}>Requesting camera and microphone permissions...</Text>
       </View>
     );
   }
@@ -229,8 +253,8 @@ export default function RecordingScreen({ navigation, route }) {
   if (hasPermission === false) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>No access to camera</Text>
-        <TouchableOpacity 
+        <Text style={styles.errorText}>Camera and microphone access required</Text>
+        <TouchableOpacity
           style={styles.button}
           onPress={() => navigation.goBack()}
         >
@@ -242,9 +266,9 @@ export default function RecordingScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <Camera 
-        style={styles.camera} 
-        type={Camera.Constants.Type.back}
+      <CameraView
+        style={styles.camera}
+        facing="back"
         ref={cameraRef}
       >
         <View style={styles.overlay}>
@@ -291,7 +315,7 @@ export default function RecordingScreen({ navigation, route }) {
           {/* Controls */}
           <View style={styles.controls}>
             {!isRecording && !isPreparing && !isAnalyzing && !analysisResult && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.recordButton}
                 onPress={startCountdown}
               >
@@ -300,7 +324,7 @@ export default function RecordingScreen({ navigation, route }) {
             )}
 
             {isRecording && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.stopButton}
                 onPress={stopRecording}
               >
@@ -308,7 +332,7 @@ export default function RecordingScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
@@ -316,7 +340,7 @@ export default function RecordingScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         </View>
-      </Camera>
+      </CameraView>
     </View>
   );
 }

@@ -2,13 +2,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -74,8 +74,99 @@ export default function ResultsScreen({ navigation, route }) {
       const results = await AsyncStorage.getItem('testResults');
       const profile = await AsyncStorage.getItem('athleteProfile');
       
-      if (results) setAllResults(JSON.parse(results));
-      if (profile) setAthleteProfile(JSON.parse(profile));
+      // For demo purposes, use dummy data if no real data exists
+      if (results) {
+        setAllResults(JSON.parse(results));
+      } else {
+        // Dummy test results for presentation
+        const dummyResults = [
+          {
+            testId: 'vertical_jump',
+            testName: 'Vertical Jump Test',
+            score: '42.5',
+            unit: 'cm',
+            confidence: 0.92,
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+            attempts: ['40.2', '42.5', '41.8'],
+            technique_notes: [
+              'Good takeoff technique with proper knee bend',
+              'Excellent arm swing coordination',
+              'Landing could be more controlled'
+            ]
+          },
+          {
+            testId: 'shuttle_run',
+            testName: 'Shuttle Run Test',
+            score: '10.8',
+            unit: 'seconds',
+            confidence: 0.89,
+            timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+            attempts: ['11.2', '10.8', '11.0'],
+            technique_notes: [
+              'Quick acceleration and deceleration',
+              'Good body positioning during turns',
+              'Consistent pace throughout the test'
+            ]
+          },
+          {
+            testId: 'sit_ups',
+            testName: 'Sit-ups Test',
+            score: '38',
+            unit: 'reps',
+            confidence: 0.95,
+            timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+            attempts: ['36', '38', '37'],
+            technique_notes: [
+              'Proper form maintained throughout',
+              'Consistent breathing pattern',
+              'Good core engagement'
+            ]
+          },
+          {
+            testId: 'vertical_jump',
+            testName: 'Vertical Jump Test',
+            score: '39.2',
+            unit: 'cm',
+            confidence: 0.87,
+            timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
+            attempts: ['38.5', '39.2', '38.9'],
+            technique_notes: [
+              'Improvement in takeoff timing',
+              'Better arm coordination than previous attempt',
+              'Consistent landing technique'
+            ]
+          },
+          {
+            testId: 'shuttle_run',
+            testName: 'Shuttle Run Test',
+            score: '11.5',
+            unit: 'seconds',
+            confidence: 0.91,
+            timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago
+            attempts: ['11.8', '11.5', '11.6'],
+            technique_notes: [
+              'Good starting position',
+              'Efficient turning technique',
+              'Room for improvement in acceleration'
+            ]
+          }
+        ];
+        setAllResults(dummyResults);
+      }
+      
+      if (profile) {
+        setAthleteProfile(JSON.parse(profile));
+      } else {
+        // Dummy athlete profile for presentation
+        const dummyProfile = {
+          name: 'Alex Johnson',
+          age: '22',
+          gender: 'male',
+          sport: 'Basketball',
+          level: 'College'
+        };
+        setAthleteProfile(dummyProfile);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -209,7 +300,6 @@ export default function ResultsScreen({ navigation, route }) {
       <ScrollView style={styles.scrollView}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Assessment Results</Text>
           {athleteProfile.name && (
             <Text style={styles.subtitle}>
               {athleteProfile.name} • {athleteProfile.age}yrs • {athleteProfile.gender}

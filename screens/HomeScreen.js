@@ -2,12 +2,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function HomeScreen({ navigation }) {
@@ -54,16 +54,16 @@ export default function HomeScreen({ navigation }) {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Image 
-          source={{ uri: 'https://via.placeholder.com/60x60/2196F3/fff?text=SAI' }}
+          source={require('../assets/images/app_icon.jpg')}
           style={styles.logo}
         />
-        <Text style={styles.title}>Sports Authority of India</Text>
+        <Text style={styles.title}>KheloAI</Text>
         <Text style={styles.subtitle}>Talent Assessment Platform</Text>
       </View>
 
       <View style={styles.welcomeCard}>
         <Text style={styles.welcomeText}>
-          {athleteName ? `Welcome back, ${athleteName}!` : 'Welcome to SAI Assessment'}
+          {athleteName ? `Welcome back, ${athleteName}!` : 'Welcome to KheloAI'}
         </Text>
         <Text style={styles.welcomeSubtext}>
           {athleteName 
@@ -75,7 +75,7 @@ export default function HomeScreen({ navigation }) {
 
       <View style={styles.menuContainer}>
         <MenuButton
-          title="Start Assessment"
+          title="Athlete Profile"
           subtitle="Begin fitness test recording"
           icon="🏃‍♂️"
           onPress={handleStartAssessment}
@@ -109,7 +109,6 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.infoText}>• Vertical Jump Test</Text>
         <Text style={styles.infoText}>• Shuttle Run (4x10m)</Text>
         <Text style={styles.infoText}>• Sit-ups (1 minute)</Text>
-        <Text style={styles.infoText}>• Endurance Run</Text>
       </View>
     </ScrollView>
   );

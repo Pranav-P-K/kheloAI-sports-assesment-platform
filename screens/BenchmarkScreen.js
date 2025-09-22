@@ -3,12 +3,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -71,26 +71,6 @@ const BENCHMARKS = {
         '13-17': { excellent: 40, good: 32, average: 25, poor: 18 },
         '18-25': { excellent: 42, good: 35, average: 28, poor: 20 },
         '26-35': { excellent: 38, good: 30, average: 23, poor: 15 }
-      }
-    }
-  },
-  endurance_run: {
-    name: 'Endurance Run (12 min)',
-    unit: 'meters',
-    description: 'Cardiovascular fitness test',
-    higherIsBetter: true,
-    data: {
-      male: {
-        '8-12': { excellent: 2000, good: 1700, average: 1400, poor: 1100 },
-        '13-17': { excellent: 2400, good: 2100, average: 1800, poor: 1500 },
-        '18-25': { excellent: 2600, good: 2300, average: 2000, poor: 1700 },
-        '26-35': { excellent: 2400, good: 2100, average: 1800, poor: 1500 }
-      },
-      female: {
-        '8-12': { excellent: 1800, good: 1500, average: 1200, poor: 900 },
-        '13-17': { excellent: 2000, good: 1700, average: 1400, poor: 1100 },
-        '18-25': { excellent: 2200, good: 1900, average: 1600, poor: 1300 },
-        '26-35': { excellent: 2000, good: 1700, average: 1400, poor: 1100 }
       }
     }
   },
@@ -301,7 +281,6 @@ export default function BenchmarkScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Performance Benchmarks</Text>
         <Text style={styles.subtitle}>Age and gender-based fitness standards</Text>
       </View>
 

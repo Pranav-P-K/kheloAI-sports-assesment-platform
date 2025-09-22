@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const ASSESSMENT_TESTS = [
@@ -50,20 +50,6 @@ const ASSESSMENT_TESTS = [
       'Count only complete repetitions'
     ],
     icon: '💪'
-  },
-  {
-    id: 'endurance_run',
-    name: 'Endurance Run',
-    description: 'Tests cardiovascular fitness and stamina',
-    duration: '12 minutes',
-    equipment: 'Open space or track',
-    instructions: [
-      'Run continuously for 12 minutes',
-      'Maintain steady pace',
-      'Record total distance covered',
-      'Walking is allowed but not recommended'
-    ],
-    icon: '🏃‍♀️'
   },
   {
     id: 'flexibility',
@@ -124,7 +110,6 @@ export default function TestSelectionScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Select Assessment Test</Text>
         <Text style={styles.subtitle}>Choose a fitness test to record and assess</Text>
       </View>
 
