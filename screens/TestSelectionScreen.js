@@ -24,18 +24,18 @@ const ASSESSMENT_TESTS = [
     icon: '🦘'
   },
   {
-    id: 'shuttle_run',
-    name: 'Shuttle Run (4x10m)',
-    description: 'Tests speed, agility, and change of direction',
-    duration: '2-3 attempts',
-    equipment: '20m space, 2 cones/markers',
+    id: 'push_ups',
+    name: 'Push-ups Test',
+    description: 'Measures upper body strength and muscular endurance',
+    duration: '1 minute',
+    equipment: 'Flat surface, timer',
     instructions: [
-      'Place markers 10m apart',
-      'Start at first marker',
-      'Sprint to second marker and back twice',
-      'Touch each marker with your hand'
+      'Start in a plank position with hands under shoulders',
+      'Lower chest until elbows are at least 90°',
+      'Push back up to full arm extension',
+      'Maintain a straight line from head to heels'
     ],
-    icon: '🏃‍♂️'
+    icon: '🏋️'
   },
   {
     id: 'sit_ups',

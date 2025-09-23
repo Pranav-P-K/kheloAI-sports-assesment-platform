@@ -34,23 +34,23 @@ const BENCHMARKS = {
       }
     }
   },
-  shuttle_run: {
-    name: 'Shuttle Run (4x10m)',
-    unit: 'seconds',
-    description: 'Speed and agility assessment',
-    higherIsBetter: false,
+  push_ups: {
+    name: 'Push-ups (1 minute)',
+    unit: 'repetitions',
+    description: 'Upper body strength and endurance',
+    higherIsBetter: true,
     data: {
       male: {
-        '8-12': { excellent: 11.5, good: 12.5, average: 13.5, poor: 15.0 },
-        '13-17': { excellent: 10.0, good: 11.0, average: 12.0, poor: 13.5 },
-        '18-25': { excellent: 9.5, good: 10.5, average: 11.5, poor: 13.0 },
-        '26-35': { excellent: 10.0, good: 11.0, average: 12.0, poor: 13.5 }
+        '8-12': { excellent: 30, good: 25, average: 18, poor: 12 },
+        '13-17': { excellent: 45, good: 35, average: 25, poor: 15 },
+        '18-25': { excellent: 50, good: 40, average: 30, poor: 20 },
+        '26-35': { excellent: 45, good: 35, average: 28, poor: 18 }
       },
       female: {
-        '8-12': { excellent: 12.0, good: 13.0, average: 14.0, poor: 15.5 },
-        '13-17': { excellent: 11.0, good: 12.0, average: 13.0, poor: 14.5 },
-        '18-25': { excellent: 10.5, good: 11.5, average: 12.5, poor: 14.0 },
-        '26-35': { excellent: 11.0, good: 12.0, average: 13.0, poor: 14.5 }
+        '8-12': { excellent: 25, good: 20, average: 15, poor: 10 },
+        '13-17': { excellent: 35, good: 28, average: 20, poor: 12 },
+        '18-25': { excellent: 40, good: 32, average: 24, poor: 15 },
+        '26-35': { excellent: 35, good: 28, average: 20, poor: 12 }
       }
     }
   },

@@ -29,18 +29,18 @@ const BENCHMARKS = {
       '26-35': { excellent: 35, good: 29, average: 22, poor: 16 }
     }
   },
-  shuttle_run: {
+  push_ups: {
     male: {
-      '8-12': { excellent: 11.5, good: 12.5, average: 13.5, poor: 15.0 },
-      '13-17': { excellent: 10.0, good: 11.0, average: 12.0, poor: 13.5 },
-      '18-25': { excellent: 9.5, good: 10.5, average: 11.5, poor: 13.0 },
-      '26-35': { excellent: 10.0, good: 11.0, average: 12.0, poor: 13.5 }
+      '8-12': { excellent: 30, good: 25, average: 18, poor: 12 },
+      '13-17': { excellent: 45, good: 35, average: 25, poor: 15 },
+      '18-25': { excellent: 50, good: 40, average: 30, poor: 20 },
+      '26-35': { excellent: 45, good: 35, average: 28, poor: 18 }
     },
     female: {
-      '8-12': { excellent: 12.0, good: 13.0, average: 14.0, poor: 15.5 },
-      '13-17': { excellent: 11.0, good: 12.0, average: 13.0, poor: 14.5 },
-      '18-25': { excellent: 10.5, good: 11.5, average: 12.5, poor: 14.0 },
-      '26-35': { excellent: 11.0, good: 12.0, average: 13.0, poor: 14.5 }
+      '8-12': { excellent: 25, good: 20, average: 15, poor: 10 },
+      '13-17': { excellent: 35, good: 28, average: 20, poor: 12 },
+      '18-25': { excellent: 40, good: 32, average: 24, poor: 15 },
+      '26-35': { excellent: 35, good: 28, average: 20, poor: 12 }
     }
   },
   sit_ups: {
@@ -95,17 +95,17 @@ export default function ResultsScreen({ navigation, route }) {
             ]
           },
           {
-            testId: 'shuttle_run',
-            testName: 'Shuttle Run Test',
-            score: '10.8',
-            unit: 'seconds',
+            testId: 'push_ups',
+            testName: 'Push-ups Test',
+            score: '36',
+            unit: 'reps',
             confidence: 0.89,
             timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-            attempts: ['11.2', '10.8', '11.0'],
+            attempts: ['36'],
             technique_notes: [
-              'Quick acceleration and deceleration',
-              'Good body positioning during turns',
-              'Consistent pace throughout the test'
+              'Full range of motion achieved',
+              'Maintain neutral spine alignment',
+              'Steady cadence throughout'
             ]
           },
           {
@@ -137,17 +137,17 @@ export default function ResultsScreen({ navigation, route }) {
             ]
           },
           {
-            testId: 'shuttle_run',
-            testName: 'Shuttle Run Test',
-            score: '11.5',
-            unit: 'seconds',
+            testId: 'push_ups',
+            testName: 'Push-ups Test',
+            score: '28',
+            unit: 'reps',
             confidence: 0.91,
             timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago
-            attempts: ['11.8', '11.5', '11.6'],
+            attempts: ['28'],
             technique_notes: [
-              'Good starting position',
-              'Efficient turning technique',
-              'Room for improvement in acceleration'
+              'Solid lockout at the top',
+              'Slight hip sag under fatigue',
+              'Consider pacing for consistency'
             ]
           }
         ];
@@ -185,14 +185,6 @@ export default function ResultsScreen({ navigation, route }) {
     const benchmarks = BENCHMARKS[testId]?.[gender]?.[ageGroup];
     
     if (!benchmarks) return { rating: 'N/A', color: '#666' };
-
-    // For time-based tests (lower is better)
-    if (testId === 'shuttle_run') {
-      if (score <= benchmarks.excellent) return { rating: 'Excellent', color: '#4CAF50' };
-      if (score <= benchmarks.good) return { rating: 'Good', color: '#8BC34A' };
-      if (score <= benchmarks.average) return { rating: 'Average', color: '#FF9800' };
-      return { rating: 'Needs Improvement', color: '#f44336' };
-    }
     
     // For count/distance-based tests (higher is better)
     if (score >= benchmarks.excellent) return { rating: 'Excellent', color: '#4CAF50' };

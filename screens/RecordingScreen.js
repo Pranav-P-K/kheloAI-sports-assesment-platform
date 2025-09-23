@@ -1,7 +1,7 @@
-/* eslint-disable react-hooks/exhaustive-deps */
+
 /* eslint-disable no-unused-vars */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Camera, CameraView } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -13,74 +13,43 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { analyzeVideoWithProgress, ApiError } from '../services/api';
+import { API_BASE_URL } from '../services/config';
 
 const { width, height } = Dimensions.get('window');
 
 export default function RecordingScreen({ navigation, route }) {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const hasPermission = permission?.granted === true;
   const [isRecording, setIsRecording] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [lastError, setLastError] = useState(null);
+  const [lastVideoUri, setLastVideoUri] = useState(null);
+  const [facing, setFacing] = useState('back');
 
   const cameraRef = useRef(null);
   const { test } = route.params;
-
+  // Media Library permission (optional for saving only)
   useEffect(() => {
-    const requestPermissions = async () => {
-      try {
-        const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
-        const { status: microphoneStatus } = await Camera.requestMicrophonePermissionsAsync();
-        // const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
-
-        // if (cameraStatus !== 'granted') {
-        //   Alert.alert(
-        //     'Camera Permission',
-        //     'Camera access is required for this app.',
-        //     [
-        //       { text: 'Cancel', style: 'cancel' },
-        //       { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        //     ]
-        //   );
-        // }
-
-        setHasPermission(cameraStatus === 'granted' && microphoneStatus === 'granted');
-      } catch (err) {
-        console.error('Permission error:', err);
-        setHasPermission(false);
-      }
-    };
-
-    requestPermissions();
+    (async () => {
+      try { await MediaLibrary.requestPermissionsAsync(); } catch {}
+    })();
   }, []);
 
-  useEffect(() => {
-    let interval = null;
-    if (isRecording && recordingTime > 0) {
-      interval = setInterval(() => {
-        setRecordingTime(time => {
-          if (time <= 1) {
-            // Stop recording when timer reaches 1 second left
-            setTimeout(() => stopRecording(), 100);
-            return 0;
-          }
-          return time - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRecording, recordingTime]);
-
+  // Countdown timer
   const startCountdown = () => {
     setIsPreparing(true);
     setCountdown(3);
 
-    const countdownInterval = setInterval(() => {
+    const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          clearInterval(countdownInterval);
+          clearInterval(interval);
           setIsPreparing(false);
           startRecording();
           return 0;
@@ -90,154 +59,146 @@ export default function RecordingScreen({ navigation, route }) {
     }, 1000);
   };
 
+  // Start recording
   const startRecording = async () => {
-    if (cameraRef.current) {
-      try {
-        setIsRecording(true);
+    if (!cameraRef.current || isRecording) return;
 
-        // Set recording duration based on test type
-        const duration = getTestDuration(test.id);
-        setRecordingTime(duration);
+    try {
+      const duration = getTestDuration(test.id);
+      setIsRecording(true);
+      setRecordingTime(duration);
 
-        // Start recording without maxDuration to avoid premature stopping
-        const video = await cameraRef.current.recordAsync({
-          quality: '720p',
-        });
-
-        // Only process if we have a valid video
-        if (video && video.uri) {
-          await saveAndAnalyzeVideo(video.uri);
-        } else {
-          throw new Error('No video data captured');
-        }
-      } catch (error) {
-        console.error('Recording error:', error);
-        Alert.alert('Error', 'Failed to record video. Please try again.');
-        setIsRecording(false);
-        setRecordingTime(0);
-      }
+      await cameraRef.current.startRecording({
+        maxDuration: duration,
+        quality: '720p',
+        onRecordingFinished: async (video) => {
+          try {
+            if (video && video.uri) {
+              await saveAndAnalyzeVideo(video.uri);
+            } else {
+              throw new Error('No video captured');
+            }
+          } catch (err) {
+            console.error('Recording finish handling error:', err);
+            setLastError(err?.message || 'Recording finish error');
+            Alert.alert('Error', 'Failed to process recorded video.');
+          } finally {
+            setIsRecording(false);
+          }
+        },
+        onRecordingError: (err) => {
+          console.warn('onRecordingError:', err);
+          setIsRecording(false);
+          setLastError(err?.message || 'Recording error');
+          Alert.alert('Error', 'Failed to record video.');
+        },
+      });
+    } catch (err) {
+      console.error('Recording start error:', err);
+      setIsRecording(false);
+      Alert.alert('Error', 'Failed to start recording.');
     }
   };
 
+  // Stop recording
   const stopRecording = async () => {
     if (cameraRef.current && isRecording) {
       try {
-        console.log('Stopping recording...');
-        setIsRecording(false);
-        setRecordingTime(0);
         await cameraRef.current.stopRecording();
-      } catch (error) {
-        console.error('Stop recording error:', error);
-        // Don't show alert for stop recording errors as they're usually harmless
+      } catch (err) {
+        console.warn('Stop recording error:', err);
+      } finally {
+        setIsRecording(false);
       }
     }
   };
 
   const getTestDuration = (testId) => {
     switch (testId) {
-      case 'vertical_jump': return 10; // Shorter for demo
-      case 'shuttle_run': return 15;   // Shorter for demo
-      case 'sit_ups': return 20;       // Shorter for demo
-      case 'flexibility': return 10;   // Shorter for demo
+      case 'vertical_jump': return 10;
+      case 'push_ups': return 20;
+      case 'sit_ups': return 20;
+      case 'flexibility': return 10;
       default: return 15;
     }
   };
 
+  // Save video and analyze
   const saveAndAnalyzeVideo = async (videoUri) => {
     try {
       setIsAnalyzing(true);
+      setUploadProgress(0);
+      setLastError(null);
+      setLastVideoUri(videoUri);
 
-      // Save video to device
       const asset = await MediaLibrary.createAssetAsync(videoUri);
 
-      // Simulate AI analysis (in real app, this would call ML models)
-      const analysisResult = await simulateAIAnalysis(test.id, videoUri);
+      let analysisResult = null;
+      try {
+        if (API_BASE_URL) {
+          const response = await analyzeVideoWithProgress({
+            testId: test.id,
+            fileUri: videoUri,
+            includeTraces: true,
+            onProgress: p => setUploadProgress(p),
+          });
 
-      // Save results
+          analysisResult = {
+            testId: response.testId || test.id,
+            testName: response.testName || test.name,
+            timestamp: response.timestamp || new Date().toISOString(),
+            videoUri: asset.uri || videoUri,
+            score: response.score,
+            unit: response.unit,
+            attempts: response.attempts || [],
+            confidence: response.confidence ?? 0.9,
+            technique_notes: response.technique_notes || [],
+            processed: true,
+            _source: response._source || 'api',
+          };
+        } else {
+          throw new ApiError('API_BASE_URL not set');
+        }
+      } catch (e) {
+        console.warn('API analysis failed, using local simulation:', e.message || e);
+        setLastError(e.message || 'Unknown error');
+        analysisResult = await simulateAIAnalysis(test.id, videoUri);
+      }
+
       await saveTestResult(analysisResult);
-
       setAnalysisResult(analysisResult);
       setIsAnalyzing(false);
 
-      // Navigate to results
       setTimeout(() => {
-        navigation.navigate('Results', {
-          result: analysisResult,
-          test: test
-        });
+        navigation.navigate('Results', { result: analysisResult, test });
       }, 2000);
 
-    } catch (error) {
+    } catch (err) {
       setIsAnalyzing(false);
-      Alert.alert('Error', 'Failed to analyze video. Please try again.');
+      setLastError(err.message || 'Failed to analyze video');
+      Alert.alert('Error', 'Failed to analyze video. You can retry.');
     }
   };
 
   const simulateAIAnalysis = async (testId, videoUri) => {
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Generate realistic results based on test type
+    await new Promise(resolve => setTimeout(resolve, 2000));
     const results = {
-      vertical_jump: {
-        score: Math.floor(Math.random() * 30) + 20, // 20-50 cm
-        unit: 'cm',
-        attempts: [
-          Math.floor(Math.random() * 30) + 20,
-          Math.floor(Math.random() * 30) + 20,
-          Math.floor(Math.random() * 30) + 20
-        ],
-        confidence: 0.95,
-        technique_notes: ['Good takeoff form', 'Landing could be improved']
-      },
-      shuttle_run: {
-        score: (Math.random() * 5 + 10).toFixed(2), // 10-15 seconds
-        unit: 'seconds',
-        attempts: [
-          (Math.random() * 5 + 10).toFixed(2),
-          (Math.random() * 5 + 10).toFixed(2)
-        ],
-        confidence: 0.92,
-        technique_notes: ['Good acceleration', 'Efficient turns']
-      },
-      sit_ups: {
-        score: Math.floor(Math.random() * 20) + 25, // 25-45 reps
-        unit: 'repetitions',
-        attempts: [Math.floor(Math.random() * 20) + 25],
-        confidence: 0.88,
-        technique_notes: ['Consistent form', 'Full range of motion']
-      },
-      flexibility: {
-        score: Math.floor(Math.random() * 15) + 5, // 5-20 cm
-        unit: 'cm',
-        attempts: [
-          Math.floor(Math.random() * 15) + 5,
-          Math.floor(Math.random() * 15) + 5,
-          Math.floor(Math.random() * 15) + 5
-        ],
-        confidence: 0.90,
-        technique_notes: ['Good flexibility', 'Consistent reach']
-      }
+      vertical_jump: { score: Math.floor(Math.random() * 30) + 20, unit: 'cm', attempts: [20, 25, 30], confidence: 0.95, technique_notes: ['Good takeoff', 'Improve landing'] },
+      push_ups: { score: Math.floor(Math.random() * 20) + 20, unit: 'reps', attempts: [20], confidence: 0.9, technique_notes: ['Full range', 'Straight body'] },
+      sit_ups: { score: Math.floor(Math.random() * 20) + 25, unit: 'reps', attempts: [25], confidence: 0.88, technique_notes: ['Consistent form'] },
+      flexibility: { score: Math.floor(Math.random() * 15) + 5, unit: 'cm', attempts: [5, 10, 15], confidence: 0.9, technique_notes: ['Good flexibility'] },
     };
-
-    return {
-      testId,
-      testName: test.name,
-      timestamp: new Date().toISOString(),
-      videoUri,
-      ...results[testId],
-      processed: true
-    };
+    return { testId, testName: test.name, timestamp: new Date().toISOString(), videoUri, ...results[testId], processed: true, _source: 'local' };
   };
 
   const saveTestResult = async (result) => {
     try {
-      const existingResults = await AsyncStorage.getItem('testResults');
-      const results = existingResults ? JSON.parse(existingResults) : [];
-      results.push(result);
-      await AsyncStorage.setItem('testResults', JSON.stringify(results));
-    } catch (error) {
-      console.error('Error saving result:', error);
+      const existing = await AsyncStorage.getItem('testResults');
+      const arr = existing ? JSON.parse(existing) : [];
+      arr.push(result);
+      await AsyncStorage.setItem('testResults', JSON.stringify(arr));
+    } catch (err) {
+      console.error('Error saving result:', err);
     }
   };
 
@@ -245,20 +206,26 @@ export default function RecordingScreen({ navigation, route }) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.loadingText}>Requesting camera and microphone permissions...</Text>
+        <Text style={styles.loadingText}>Requesting permissions...</Text>
       </View>
     );
   }
 
-  if (hasPermission === false) {
+  if (!permission) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>Camera and microphone access required</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
+        <ActivityIndicator size="large" color="#2196F3" />
+        <Text style={styles.loadingText}>Requesting permissions...</Text>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Camera permission is required</Text>
+        <TouchableOpacity style={styles.button} onPress={requestPermission}>
+          <Text style={styles.buttonText}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -268,245 +235,79 @@ export default function RecordingScreen({ navigation, route }) {
     <View style={styles.container}>
       <CameraView
         style={styles.camera}
-        facing="back"
+        facing={facing}
         ref={cameraRef}
-      >
-        <View style={styles.overlay}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.testTitle}>{test.name}</Text>
-            {recordingTime > 0 && (
-              <Text style={styles.timer}>
-                {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
-              </Text>
-            )}
-          </View>
+      />
 
-          {/* Countdown */}
-          {isPreparing && (
-            <View style={styles.countdownContainer}>
-              <Text style={styles.countdownText}>Get Ready!</Text>
-              <Text style={styles.countdownNumber}>{countdown}</Text>
-            </View>
-          )}
-
-          {/* Analysis Screen */}
-          {isAnalyzing && (
-            <View style={styles.analysisContainer}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.analysisText}>Analyzing Performance...</Text>
-              <Text style={styles.analysisSubtext}>AI is processing your video</Text>
-            </View>
-          )}
-
-          {/* Results Preview */}
-          {analysisResult && (
-            <View style={styles.resultsPreview}>
-              <Text style={styles.resultsTitle}>Analysis Complete!</Text>
-              <Text style={styles.scoreText}>
-                Score: {analysisResult.score} {analysisResult.unit}
-              </Text>
-              <Text style={styles.confidenceText}>
-                Confidence: {(analysisResult.confidence * 100).toFixed(0)}%
-              </Text>
-            </View>
-          )}
-
-          {/* Controls */}
-          <View style={styles.controls}>
-            {!isRecording && !isPreparing && !isAnalyzing && !analysisResult && (
-              <TouchableOpacity
-                style={styles.recordButton}
-                onPress={startCountdown}
-              >
-                <Text style={styles.recordButtonText}>Start Recording</Text>
-              </TouchableOpacity>
-            )}
-
-            {isRecording && (
-              <TouchableOpacity
-                style={styles.stopButton}
-                onPress={stopRecording}
-              >
-                <View style={styles.stopButtonInner} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.backButtonText}>← Back</Text>
-            </TouchableOpacity>
-          </View>
+      {/* Overlay UI */}
+      <View style={styles.overlay}>
+        <View style={styles.header}>
+          <Text style={styles.testTitle}>{test.name}</Text>
+          {recordingTime > 0 && <Text style={styles.timer}>{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</Text>}
         </View>
-      </CameraView>
+
+        {isPreparing && (
+          <View style={styles.countdownContainer}>
+            <Text style={styles.countdownText}>Get Ready!</Text>
+            <Text style={styles.countdownNumber}>{countdown}</Text>
+          </View>
+        )}
+
+        {isAnalyzing && (
+          <View style={styles.analysisContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.analysisText}>Analyzing Performance...</Text>
+            <Text style={styles.analysisSubtext}>
+              {uploadProgress > 0 && uploadProgress < 1 ? `Uploading: ${(uploadProgress * 100).toFixed(0)}%` : 'AI is processing your video'}
+            </Text>
+            {lastError && (
+              <>
+                <Text style={styles.errorText}>{lastError}</Text>
+                <TouchableOpacity style={styles.button} onPress={() => lastVideoUri && saveAndAnalyzeVideo(lastVideoUri)}>
+                  <Text style={styles.buttonText}>Retry</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+
+        {!isRecording && !isPreparing && !isAnalyzing && !analysisResult && (
+          <TouchableOpacity style={styles.recordButton} onPress={startCountdown}>
+            <Text style={styles.recordButtonText}>Start Recording</Text>
+          </TouchableOpacity>
+        )}
+
+        {isRecording && (
+          <TouchableOpacity style={styles.stopButton} onPress={stopRecording}>
+            <View style={styles.stopButtonInner} />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
+// Keep your existing styles
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 20,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#f44336',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  testTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  timer: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#f44336',
-    fontFamily: 'monospace',
-  },
-  countdownContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  countdownText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-  },
-  countdownNumber: {
-    fontSize: 72,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10,
-  },
-  analysisContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  },
-  analysisText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-    marginTop: 20,
-  },
-  analysisSubtext: {
-    fontSize: 14,
-    color: '#ccc',
-    marginTop: 10,
-  },
-  resultsPreview: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-  },
-  resultsTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-  },
-  scoreText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 10,
-  },
-  confidenceText: {
-    fontSize: 16,
-    color: 'white',
-  },
-  controls: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  recordButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f44336',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-  },
-  recordButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-  },
-  stopButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#666',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-  },
-  stopButtonInner: {
-    width: 30,
-    height: 30,
-    backgroundColor: 'white',
-    borderRadius: 4,
-  },
-  backButton: {
-    position: 'absolute',
-    left: 30,
-    padding: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 25,
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  button: {
-    backgroundColor: '#2196F3',
-    padding: 15,
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1 },
+  camera: { flex: 1 },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 40, backgroundColor: 'rgba(0,0,0,0.5)' },
+  testTitle: { fontSize: 18, fontWeight: 'bold', color: 'white' },
+  timer: { fontSize: 24, fontWeight: 'bold', color: '#f44336', fontFamily: 'monospace' },
+  countdownContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  countdownText: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 20 },
+  countdownNumber: { fontSize: 72, fontWeight: 'bold', color: '#4CAF50' },
+  analysisContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
+  analysisText: { fontSize: 20, fontWeight: 'bold', color: 'white', marginTop: 20 },
+  analysisSubtext: { fontSize: 14, color: '#ccc', marginTop: 10 },
+  recordButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#f44336', justifyContent: 'center', alignItems: 'center', elevation: 5, position: 'absolute', bottom: 30, left: width / 2 - 40 },
+  recordButtonText: { fontSize: 12, fontWeight: 'bold', color: 'white', textAlign: 'center' },
+  stopButton: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#666', justifyContent: 'center', alignItems: 'center', elevation: 5, position: 'absolute', bottom: 30, left: width / 2 - 40 },
+  stopButtonInner: { width: 30, height: 30, backgroundColor: 'white', borderRadius: 4 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' },
+  loadingText: { marginTop: 20, fontSize: 16, color: '#666' },
+  errorText: { fontSize: 18, color: '#f44336', marginBottom: 20, textAlign: 'center' },
+  button: { backgroundColor: '#2196F3', padding: 15, borderRadius: 8 },
+  buttonText: { color: 'white', fontSize: 16, fontWeight: 'bold' }
 });
